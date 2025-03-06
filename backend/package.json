@@ -5,7 +5,7 @@
   "scripts": {
     "build": "npx tsc",
     "watch": "npx tsc -w",
-    "dev": "concurrently --Kill-others\"npm run watch\" \"npx nodemon dist/index.js\"",
+    "dev": "concurrently \"npx tsc -w\" \"npx nodemon dist/index.js\"",
   "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

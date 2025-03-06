@@ -1,13 +1,10 @@
-import express,{Express,Request,Response} from "express"
+import express,{Express} from "express"
+import { PORT } from "./config/server.config";
+import apiRouter from "./routes";
 
 const app:Express = express();
 
-app.get("/ping",(_req:Request,res:Response)=>{
-res.json({
-    message:"pong!!"
-})
-})
-
-app.listen(3000,()=>{
-    console.log("server is running on Port : 3000" )
+app.use("/api",apiRouter)
+app.listen(PORT,()=>{
+    console.log(`server is running on Port : ${PORT}` )
 });
