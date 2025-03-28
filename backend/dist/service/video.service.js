@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.processVideoForHLS = void 0;
 const fs_1 = __importDefault(require("fs"));
 const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
-const path_1 = __importDefault(require("path"));
+const movie_repository_1 = require("../repositories/movie.repository");
 const resolutions = [
     { width: 1920, height: 1080, bitRate: 5000 }, // 1080p
     { width: 1280, height: 720, bitRate: 2500 }, // 720p
@@ -17,45 +17,44 @@ const resolutions = [
  * Processes a video file for HTTP Live Streaming (HLS)
  */
 const processVideoForHLS = (inputPath, outputPath, callback) => {
-    if (!fs_1.default.existsSync(inputPath)) {
-        callback(new Error("❌ Input video file does not exist."));
-        return;
-    }
-    fs_1.default.mkdirSync(outputPath, { recursive: true });
-    const masterPlaylist = `${outputPath}/master.m3u8`;
-    const masterContent = ["#EXTM3U"];
+    fs_1.default.mkdirSync(outputPath, { recursive: true }); // Create the output directory
+    const masterPlaylist = `${outputPath}/master.m3u8`; // Path to the master playlist file
+    const masterContent = [];
     let countProcessing = 0;
     resolutions.forEach((resolution) => {
-        const variantOutput = path_1.default.join(outputPath, `${resolution.height}p`);
-        const variantPlaylist = path_1.default.join(variantOutput, "playlist.m3u8");
-        fs_1.default.mkdirSync(variantOutput, { recursive: true });
-        console.log(`🔄 Processing ${resolution.width}x${resolution.height} at ${resolution.bitRate} kbps`);
+        console.log(`Processing video for resolution: ${resolution.width}x${resolution.height}`);
+        const variantOutput = `${outputPath}/${resolution.height}p`;
+        const variantPlaylist = `${variantOutput}/playlist.m3u8`; // Path to the variant playlist file
+        (0, movie_repository_1.createMovie)(outputPath);
+        fs_1.default.mkdirSync(variantOutput, { recursive: true }); // Create the variant directory
         (0, fluent_ffmpeg_1.default)(inputPath)
             .outputOptions([
-            `-vf scale=${resolution.width}:${resolution.height}`,
+            `-vf scale=w=${resolution.width}:h=${resolution.height}`,
             `-b:v ${resolution.bitRate}k`,
-            "-codec:v libx264",
-            "-codec:a aac",
-            "-preset veryfast",
-            "-hls_time 10",
-            "-hls_playlist_type vod",
-            "-hls_flags independent_segments",
-            `-hls_segment_filename ${variantOutput}/segment%03d.ts`,
+            '-codec:v libx264',
+            '-codec:a aac',
+            '-hls_time 10',
+            '-hls_playlist_type vod',
+            `-hls_segment_filename ${variantOutput}/segment%03d.ts`
         ])
-            .output(variantPlaylist)
-            .on("end", () => {
-            console.log(`✅ Completed processing for ${resolution.height}p`);
-            masterContent.push(`#EXT-X-STREAM-INF:BANDWIDTH=${resolution.bitRate * 1000},RESOLUTION=${resolution.width}x${resolution.height}`, `${resolution.height}p/playlist.m3u8`);
-            countProcessing++;
+            .output(variantPlaylist) // Output to the variant playlist file
+            .on('end', () => {
+            // When the processing ends for a resolution, add the variant playlist to the master playlist
+            masterContent.push(`#EXT-X-STREAM-INF:BANDWIDTH=${resolution.bitRate * 1000},RESOLUTION=${resolution.width}x${resolution.height}\n${resolution.height}p/playlist.m3u8`);
+            countProcessing += 1;
             if (countProcessing === resolutions.length) {
-                console.log("🎉 HLS PROCESSING COMPLETE");
-                fs_1.default.writeFileSync(masterPlaylist, masterContent.join("\n"));
-                callback(null, masterPlaylist);
+                console.log('Processing complete');
+                console.log(masterContent);
+                // When the processing ends for all resolutions, create the master playlist
+                fs_1.default.writeFileSync(masterPlaylist, `#EXTM3U\n${masterContent.join('\n')}`);
+                // place where video processing ends;
+                (0, movie_repository_1.updateMovieStatus)(outputPath, "COMPLETE");
+                callback(null, masterPlaylist); // Call the callback with the master playlist path
             }
         })
-            .on("error", (error) => {
-            console.error("❌ Error in FFmpeg:", error);
-            callback(error);
+            .on('error', (error) => {
+            console.log('An error occurred:', error);
+            callback(error); // Call the callback with the error
         })
             .run();
     });
